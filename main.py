@@ -533,7 +533,7 @@ def handle_all_messages(message):
   user_id = message.from_user.id
 
   # 1. Admin Broadcast Check
-  if user_id == ADMIN_CHAT_ID and user_states.get(ADMIN_CHAT_ID) == "waiting_for_utr" is False and user_states.get(ADMIN_CHAT_ID) == "waiting_for_broadcast":
+  if user_id == ADMIN_CHAT_ID and user_states.get(ADMIN_CHAT_ID) == "waiting_for_broadcast":
     user_states.pop(ADMIN_CHAT_ID, None)
     users = get_all_users()
     success = 0
@@ -545,7 +545,7 @@ def handle_all_messages(message):
       try:
         bot.copy_message(chat_id=uid, from_chat_id=ADMIN_CHAT_ID, message_id=message.message_id)
         success += 1
-        time.sleep(0.05) # Rate limit protection
+        time.sleep(0.05)
       except Exception:
         fail += 1
 
