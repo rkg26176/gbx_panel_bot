@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GBX VIP Arena</title>
+    <!-- Telegram Web App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Confetti Library for Party Popper Animation -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background-color: #0b0f19;
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+        /* Loading & Confetti Screen */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0b0f19;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #ff5722;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loader-text {
+            color: #a0aec0;
+            font-size: 16px;
+            letter-spacing: 1px;
+        }
+
+        /* Main Container */
+        .container {
+            width: 100%;
+            max-width: 480px;
+            padding: 20px;
+            display: none; /* Shown after load */
+            flex-direction: column;
+        }
+
+        /* Top Header */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 25px;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #ff5722;
+        }
+        .greeting-box h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #edf2f7;
+        }
+        .greeting-box p {
+            font-size: 12px;
+            color: #a0aec0;
+            margin-top: 2px;
+        }
+        .live-badge {
+            background-color: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #10b981;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #10b981;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            font-size: 13px;
+            color: #cbd5e0;
+        }
+        .stats-right {
+            color: #ff9800;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* Title section */
+        .section-title {
+            font-size: 12px;
+            letter-spacing: 1.5px;
+            color: #718096;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+        .main-heading {
+            font-size: 28px;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 25px;
+        }
+        .main-heading span {
+            color: #ff5722;
+        }
+
+        /* Panel Cards */
+        .panel-card {
+            background: #141b2d;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+        .panel-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(255, 87, 34, 0.4);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+        }
+        .card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .tag {
+            background: rgba(255, 255, 255, 0.06);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .arrow-icon {
+            width: 32px;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .panel-card:hover .arrow-icon {
+            background: #ff5722;
+            color: #fff;
+        }
+        .panel-icon-box {
+            width: 50px;
+            height: 50px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 12px;
+        }
+        .card-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .card-desc {
+            font-size: 13px;
+            color: #a0aec0;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+        .badges-container {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .mini-badge {
+            background: rgba(0, 0, 0, 0.25);
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 20px 0;
+            font-size: 12px;
+            color: #4a5568;
+            letter-spacing: 1px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Screen with Confetti trigger -->
+    <div id="loader">
+        <div class="spinner"></div>
+        <div class="loader-text">Verifying Access...</div>
+    </div>
+
+    <!-- Main Content Container -->
+    <div class="container" id="mainContent">
+        <!-- Header -->
+        <div class="header">
+            <div class="user-info">
+                <img id="userAvatar" src="https://via.placeholder.com/150" alt="Avatar" class="avatar">
+                <div class="greeting-box">
+                    <h3 id="greetingText">Good evening, User! 👋</h3>
+                    <p>Welcome to the Arena</p>
+                </div>
+            </div>
+            <div class="live-badge">
+                <div class="live-dot"></div> PANEL LIVE
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <span>VIP Access Active</span>
+            <span class="stats-right">🔥 Unlimited Services</span>
+        </div>
+
+        <!-- Title -->
+        <div class="section-title">Choose Your Arena</div>
+        <div class="main-heading">
+            GBX Central.<br><span>Unlock Infinite Power.</span>
+        </div>
+
+        <!-- Panel 1 -->
+        <a href="https://firexpannels.vercel.app/?s=aHR0cHM6Ly9nYWRpd2FsYS03ZjA4Zi1kZWZhdWx0LXJ0ZGIuYXNpYS1zb3V0aGVhc3QxLmZpcmViYXNlZGF0YWJhc2UuYXBwfHx8aHR0cHM6Ly9nYWRpd2FsYS03ZjA4Zi1kZWZhdWx0LXJ0ZGIuYXNpYS1zb3V0aGVhc3QxLmZpcmViYXNlZGF0YWJhc2UuYXBw" target="_blank" class="panel-card">
+            <div class="card-top">
+                <span class="tag" style="color: #ff9800;">⚡ SERVER 1</span>
+                <div class="arrow-icon">➔</div>
+            </div>
+            <div class="panel-icon-box" style="background: #ff5722;">🚀</div>
+            <div class="card-title">GBX Panel 1</div>
+            <div class="card-desc">High-speed automated execution tool with real-time Firebase backend sync and instant response.</div>
+            <div class="badges-container">
+                <span class="mini-badge" style="color: #ff9800;">🔥 High Speed</span>
+                <span class="mini-badge" style="color: #4ade80;">🛡️ Secure API</span>
+                <span class="mini-badge" style="color: #38bdf8;">✨ 24/7 Active</span>
+            </div>
+        </a>
+
+        <!-- Panel 2 -->
+        <a href="https://profexhub.org/?s=aHR0cHM6Ly9tYWZpYWFhYTJvcHBwLWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbXx8fEFJemFTeUJsMzE3OUc2MGMyTHpZUHJia3A0dG11UktLXzdIMF8wZw==" target="_blank" class="panel-card">
+            <div class="card-top">
+                <span class="tag" style="color: #38bdf8;">💎 SERVER 2</span>
+                <div class="arrow-icon">➔</div>
+            </div>
+            <div class="panel-icon-box" style="background: #0ea5e9;">💎</div>
+            <div class="card-title">GBX Panel 2</div>
+            <div class="card-desc">Exclusive resources and premium utilities built for high-tier performance and maximum efficiency.</div>
+            <div class="badges-container">
+                <span class="mini-badge" style="color: #38bdf8;">⚡ Instant Access</span>
+                <span class="mini-badge" style="color: #f472b6;">💎 VIP Deals</span>
+                <span class="mini-badge" style="color: #a78bfa;">🚀 Top Rated</span>
+            </div>
+        </a>
+
+        <!-- Panel 3 -->
+        <a href="https://firexpannels.vercel.app/?s=aHR0cHM6Ly9rYWxpLTFiMjE3LWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbXx8fGh0dHBzOi8va2FsaS0xYjIxNy1kZWZhdWx0LXJ0ZGIuZmlyZWJhc2Vpby5jb20=" target="_blank" class="panel-card">
+            <div class="card-top">
+                <span class="tag" style="color: #10b981;">🛡️ SERVER 3</span>
+                <div class="arrow-icon">➔</div>
+            </div>
+            <div class="panel-icon-box" style="background: #10b981;">🛡️</div>
+            <div class="card-title">GBX Panel 3</div>
+            <div class="card-desc">Encrypted connection node ensuring absolute safety, database integration, and seamless workflow.</div>
+            <div class="badges-container">
+                <span class="mini-badge" style="color: #10b981;">🔒 100% Safe</span>
+                <span class="mini-badge" style="color: #fbbf24;">⚡ Zero Lag</span>
+                <span class="mini-badge" style="color: #f87171;">💡 Pro Tools</span>
+            </div>
+        </a>
+
+        <!-- Panel 4 -->
+        <a href="https://profexhub.org/?s=aHR0cHM6Ly9wYWluaXNsdi1kZWZhdWx0LXJ0ZGIuZmlyZWJhc2Vpby5jb218fHxBSXphU3lDcTdqRFBnVkNhZTM2cTdGNUhiZFVFQjlGYmx1TThwRHM=" target="_blank" class="panel-card">
+            <div class="card-top">
+                <span class="tag" style="color: #a855f7;">👑 SERVER 4</span>
+                <div class="arrow-icon">➔</div>
+            </div>
+            <div class="panel-icon-box" style="background: #a855f7;">👑</div>
+            <div class="card-title">GBX Panel 4</div>
+            <div class="card-desc">The ultimate control center containing all exclusive features, configurations, and custom modules.</div>
+            <div class="badges-container">
+                <span class="mini-badge" style="color: #c084fc;">👑 Ultimate</span>
+                <span class="mini-badge" style="color: #34d399;">📦 Fresh Stock</span>
+                <span class="mini-badge" style="color: #60a5fa;">🚀 Direct Link</span>
+            </div>
+        </a>
+
+        <!-- Footer -->
+        <div class="footer">
+            Developed by GBX
+        </div>
+    </div>
+
+    <script>
+        // Telegram Data & Dynamic Greeting Logic
+        window.addEventListener('DOMContentLoaded', () => {
+            let userName = "Rounak"; // Default fallback name
+            let userPhoto = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"; // Fallback avatar
+
+            // Try fetching real Telegram user data if opened via Telegram WebApp
+            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+                let tgUser = window.Telegram.WebApp.initDataUnsafe.user;
+                if (tgUser.first_name) {
+                    userName = tgUser.first_name;
+                }
+                if (tgUser.photo_url) {
+                    userPhoto = tgUser.photo_url;
+                }
+                window.Telegram.WebApp.ready();
+                window.Telegram.WebApp.expand();
+            }
+
+            // Set Avatar & Name
+            document.getElementById('userAvatar').src = userPhoto;
+
+            // Dynamic Time-based Greeting
+            const hour = new Date().getHours();
+            let greeting = "Good evening";
+            if (hour < 12) {
+                greeting = "Good morning";
+            } else if (hour < 17) {
+                greeting = "Good afternoon";
+            } else {
+                greeting = "Good evening";
+            }
+
+            document.getElementById('greetingText').innerHTML = `${greeting}, ${userName}! 👋`;
+
+            // Loading simulation with Confetti blast after 2 seconds
+            setTimeout(() => {
+                const loader = document.getElementById('loader');
+                loader.style.opacity = '0';
+                setTimeout(() => {
+                    loader.style.display = 'none';
+                    document.getElementById('mainContent').style.display = 'flex';
+                    
+                    // Trigger Party Popper Confetti Blast
+                    confetti({
+                        particleCount: 100,
+                        spread: 70,
+                        origin: { y: 0.6 }
+                    });
+                }, 500);
+            }, 2000);
+        });
+    </script>
+</body>
+  </html>
+  
