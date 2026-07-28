@@ -35,8 +35,7 @@ user_states = {}
 pending_tx = {}
 DB_NAME = "bot_panel_database.db"
 
-# 🛡️ PERMANENT VIP USERS LIST (Code-backed to never lose access on redeploy)
-# Yahan aap apni ya kisi trusted user ki Telegram ID hamesha ke liye save rakh sakte hain
+# 🛡️ PERMANENT VIP USERS LIST
 PERMANENT_VIP_USERS = [ADMIN_CHAT_ID, 8053042225]
 
 
@@ -55,7 +54,6 @@ def init_db():
     )
     conn.commit()
     
-    # Auto-add permanent VIPs to database
     for uid in PERMANENT_VIP_USERS:
       cursor.execute(
           "INSERT OR IGNORE INTO users (user_id, panel_unlocked) VALUES (?, 1)",
@@ -80,17 +78,15 @@ def get_db_connection():
   return conn
 
 
-def get_user_data(user_id):
+def register_or_get_user(user_id):
   try:
-    # Check permanent list first
     is_vip = 1 if user_id in PERMANENT_VIP_USERS else 0
-    
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
     user = cursor.fetchone()
     if not user:
-      cursor.execute("INSERT INTO users (user_id, panel_unlocked) VALUES (?, ?)", (user_id, is_vip))
+      cursor.execute("INSERT OR IGNORE INTO users (user_id, panel_unlocked) VALUES (?, ?)", (user_id, is_vip))
       conn.commit()
       cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
       user = cursor.fetchone()
@@ -98,12 +94,12 @@ def get_user_data(user_id):
     
     if user:
       data = dict(user)
-      if is_vip == 1:
+      if is_vip == 1 or data.get("panel_unlocked") == 1:
         data["panel_unlocked"] = 1
       return data
     return {"points": 0, "referral_count": 0, "panel_unlocked": is_vip, "referred_by": None}
   except Exception as e:
-    print("Get user error:", e)
+    print("User register error:", e)
     return {"points": 0, "referral_count": 0, "panel_unlocked": 1 if user_id in PERMANENT_VIP_USERS else 0, "referred_by": None}
 
 
@@ -111,6 +107,7 @@ def update_user_data(user_id, field, value):
   try:
     conn = get_db_connection()
     cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO users (user_id, panel_unlocked) VALUES (?, 0)", (user_id,))
     cursor.execute(f"UPDATE users SET {field} = ? WHERE user_id = ?", (value, user_id))
     conn.commit()
     conn.close()
@@ -140,9 +137,13 @@ def get_all_users():
     cursor.execute("SELECT user_id FROM users")
     rows = cursor.fetchall()
     conn.close()
-    return [row["user_id"] for row in rows]
+    
+    user_set = set([row["user_id"] for row in rows])
+    for uid in PERMANENT_VIP_USERS:
+      user_set.add(uid)
+    return list(user_set)
   except Exception:
-    return []
+    return PERMANENT_VIP_USERS
 
 
 def get_unlocked_users():
@@ -152,9 +153,13 @@ def get_unlocked_users():
     cursor.execute("SELECT user_id FROM users WHERE panel_unlocked = 1")
     rows = cursor.fetchall()
     conn.close()
-    return [row["user_id"] for row in rows]
+    
+    unlocked_set = set([row["user_id"] for row in rows])
+    for uid in PERMANENT_VIP_USERS:
+      unlocked_set.add(uid)
+    return list(unlocked_set)
   except Exception:
-    return []
+    return PERMANENT_VIP_USERS
 
 
 def is_utr_used(utr):
@@ -182,12 +187,12 @@ def add_used_utr(utr):
 
 def reward_referrer_if_eligible(user_id):
   try:
-    user_data = get_user_data(user_id)
+    user_data = register_or_get_user(user_id)
     referrer_id = user_data.get("referred_by")
     ref_rewarded = user_data.get("ref_rewarded", 0)
 
     if referrer_id and ref_rewarded == 0 and referrer_id != user_id:
-      referrer_data = get_user_data(referrer_id)
+      referrer_data = register_or_get_user(referrer_id)
       if referrer_data:
         new_ref_count = referrer_data.get("referral_count", 0) + 1
         new_points = add_user_points(referrer_id, REFERRAL_REWARD_POINTS)
@@ -276,7 +281,7 @@ def show_dynamic_force_join(chat_id, user_name, status_map, message_id=None):
 
 
 def show_main_menu(chat_id, user_name):
-  user_data = get_user_data(chat_id)
+  user_data = register_or_get_user(chat_id)
   panel_unlocked = 1 if chat_id in PERMANENT_VIP_USERS else int(user_data.get("panel_unlocked", 0))
 
   markup = InlineKeyboardMarkup(row_width=1)
@@ -284,7 +289,7 @@ def show_main_menu(chat_id, user_name):
   if panel_unlocked == 1:
     text = (
         f"✅ **Welcome back to GBX Pannel Bot, {user_name}!**\n\n"
-        "🎉 Aapka Web Panel pehle se **Unlocked** hai! Niche diye gaye button से apna panel open karein 👇"
+        "🎉 Aapka Web Panel pehle se **Unlocked** hai! Niche diye gaye button se apna panel open karein 👇"
     )
     markup.add(
         InlineKeyboardButton(
@@ -317,7 +322,10 @@ def start_command(message):
   user_name = message.from_user.first_name
   user_states.pop(user_id, None)
 
-  user_data = get_user_data(user_id)
+  # Auto register user immediately on start
+  register_or_get_user(user_id)
+
+  user_data = register_or_get_user(user_id)
   args = message.text.split()
   if len(args) > 1 and user_data.get("referred_by") is None:
     try:
@@ -343,7 +351,7 @@ def admin_command(message):
   markup.add(InlineKeyboardButton(text="📬 Inbox (Broadcast)", callback_data="admin_broadcast_mode"))
   bot.send_message(
       message.chat.id,
-      "🛠️ **Admin Control Panel**\n\nSabhi users ko broadcast message bhejne ke liye niche button par click karein:\n\n*Note: Aap `/userlist` command type karke un sabhi users ki list dekh sakte hain jinhone panel access le rakha hai.*",
+      "🛠️ **Admin Control Panel**\n\nSabhi users ko broadcast message bhejne ke liye niche button par click karein:\n\n*Note: Aap `/userlist` command type karke un sabhi users ki list dekh sakte hain jinhone bot start kiya hai.*",
       reply_markup=markup,
       parse_mode="Markdown"
   )
@@ -354,10 +362,10 @@ def userlist_command(message):
   if message.chat.id != ADMIN_CHAT_ID:
     return
   
-  unlocked_users = get_unlocked_users()
-  text = f"📋 **VIP Unlocked Users List**\n\nTotal Unlocked Users: `{len(unlocked_users)}`\n\n"
+  all_users = get_all_users()
+  text = f"📋 **All Registered Users List**\n\nTotal Users: `{len(all_users)}`\n\n"
   
-  for idx, uid in enumerate(unlocked_users, 1):
+  for idx, uid in enumerate(all_users, 1):
     text += f"{idx}. User ID: `{uid}`\n"
     
   if len(text) > 4000:
@@ -393,6 +401,10 @@ def handle_verification(call):
   if call.message.chat.type != "private":
     return
   user_id = call.from_user.id
+  
+  # Ensure user is registered on verification too
+  register_or_get_user(user_id)
+
   status_map = get_user_status_map(user_id)
   if all(status_map.values()):
     reward_referrer_if_eligible(user_id)
@@ -419,7 +431,7 @@ def handle_refer_menu(call):
   if call.message.chat.type != "private":
     return
   user_id = call.from_user.id
-  user_data = get_user_data(user_id)
+  user_data = register_or_get_user(user_id)
   refs = int(user_data.get("referral_count", 0))
   points = int(user_data.get("points", 0))
   panel_unlocked = 1 if user_id in PERMANENT_VIP_USERS else int(user_data.get("panel_unlocked", 0))
@@ -471,7 +483,7 @@ def claim_referral_unlock(call):
   if call.message.chat.type != "private":
     return
   user_id = call.from_user.id
-  user_data = get_user_data(user_id)
+  user_data = register_or_get_user(user_id)
   refs = int(user_data.get("referral_count", 0))
 
   if int(user_data.get("panel_unlocked", 0)) == 1 or user_id in PERMANENT_VIP_USERS:
@@ -584,6 +596,9 @@ def handle_all_messages(message):
     return
   user_id = message.from_user.id
 
+  # Ensure any messaging user is also tracked
+  register_or_get_user(user_id)
+
   # 1. Admin Broadcast Check
   if user_id == ADMIN_CHAT_ID and user_states.get(ADMIN_CHAT_ID) == "waiting_for_broadcast":
     user_states.pop(ADMIN_CHAT_ID, None)
@@ -673,6 +688,7 @@ def admin_action(call):
 
   if action == "adm_accept":
     update_user_data(target, "panel_unlocked", 1)
+    
     try:
       bot.edit_message_text(
           f"✅ Approved! Web Panel unlocked for User `{target}`.",
