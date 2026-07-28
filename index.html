@@ -3,119 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GBX VIP Pannel</title>
-    <!-- Telegram Web App SDK -->
+    <title>GBX VIP Arena</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
         * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+            margin: 0; padding: 0; box-sizing: border-box;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            -webkit-touch-callout: none; /* Stops long press preview pop-up on mobile */
+            -webkit-touch-callout: none;
         }
         body {
-            background-color: #0b0f19;
-            color: #ffffff;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            overflow-x: hidden;
+            background-color: #0b0f19; color: #ffffff;
+            min-height: 100vh; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; overflow-x: hidden;
         }
         #lockScreen {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 20px;
-            width: 100%;
-            height: 100vh;
-            position: fixed;
-            top: 0;
-            left: 0;
-            background-color: #0b0f19;
-            z-index: 99999;
+            display: none; flex-direction: column; align-items: center;
+            justify-content: center; text-align: center; padding: 20px;
+            width: 100%; height: 100vh; position: fixed; top: 0; left: 0;
+            background-color: #0b0f19; z-index: 99999;
         }
         .lock-icon { font-size: 60px; margin-bottom: 20px; }
         .lock-title { font-size: 24px; font-weight: 700; margin-bottom: 10px; color: #ffffff; }
         .lock-desc { font-size: 14px; color: #a0aec0; margin-bottom: 30px; max-width: 300px; line-height: 1.5; }
         .bot-btn {
-            background-color: #0ea5e9;
-            color: #ffffff;
-            padding: 14px 28px;
-            border-radius: 14px;
-            font-size: 16px;
-            font-weight: 600;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
+            background-color: #0ea5e9; color: #ffffff; padding: 14px 28px;
+            border-radius: 14px; font-size: 16px; font-weight: 600; text-decoration: none;
+            display: inline-flex; align-items: center; gap: 10px;
             box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4);
         }
         #loader {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-color: #0b0f19;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            z-index: 9999;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #0b0f19; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 9999;
             transition: opacity 0.5s ease;
         }
         .spinner {
-            width: 50px; height: 50px;
-            border: 4px solid rgba(255, 255, 255, 0.1);
-            border-top: 4px solid #ff5722;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
+            width: 50px; height: 50px; border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #ff5722; border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 20px;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .loader-text { color: #a0aec0; font-size: 16px; letter-spacing: 1px; }
-        .container {
-            width: 100%; max-width: 480px; padding: 20px; display: none; flex-direction: column;
-        }
+        .container { width: 100%; max-width: 480px; padding: 20px; display: none; flex-direction: column; }
         .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px; }
         .user-info { display: flex; align-items: center; gap: 12px; }
         .avatar { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid #ff5722; }
         .greeting-box h3 { font-size: 16px; font-weight: 600; color: #edf2f7; }
         .greeting-box p { font-size: 12px; color: #a0aec0; margin-top: 2px; }
         .live-badge {
-            background-color: rgba(16, 185, 129, 0.15);
-            color: #10b981; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+            background-color: rgba(16, 185, 129, 0.15); color: #10b981;
+            padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
             display: flex; align-items: center; gap: 6px; border: 1px solid rgba(16, 185, 129, 0.3);
         }
         .live-dot { width: 8px; height: 8px; background-color: #10b981; border-radius: 50%; box-shadow: 0 0 8px #10b981; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(0.95); opacity: 0.8; } }
         .stats-bar {
             background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; font-size: 13px; color: #cbd5e0;
+            border-radius: 12px; padding: 12px 16px; display: flex; justify-content: space-between;
+            align-items: center; margin-bottom: 25px; font-size: 13px; color: #cbd5e0;
         }
         .stats-right { color: #ff9800; font-weight: 600; }
         .section-title { font-size: 12px; letter-spacing: 1.5px; color: #718096; margin-bottom: 15px; text-transform: uppercase; font-weight: 700; }
         .main-heading { font-size: 28px; font-weight: 800; line-height: 1.2; margin-bottom: 25px; }
         .main-heading span { color: #ff5722; }
-        
         .panel-card {
             background: #141b2d; border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 20px; padding: 20px; margin-bottom: 20px; cursor: pointer;
             transition: all 0.3s ease; position: relative; display: block;
         }
         .panel-card:hover { transform: translateY(-3px); border-color: rgba(255, 87, 34, 0.4); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4); }
-        
-        /* Locked Card Styling */
-        .panel-card.locked {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        .panel-card.locked:hover {
-            transform: none;
-            border-color: rgba(255, 255, 255, 0.08);
-            box-shadow: none;
-        }
-
+        .panel-card.locked { opacity: 0.5; cursor: not-allowed; }
+        .panel-card.locked:hover { transform: none; border-color: rgba(255, 255, 255, 0.08); box-shadow: none; }
         .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .tag { background: rgba(255, 255, 255, 0.06); padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; }
         .arrow-icon { width: 32px; height: 32px; background: rgba(255, 255, 255, 0.08); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
@@ -161,12 +120,12 @@
             <span class="stats-right">🔥 Unlimited Services</span>
         </div>
 
-        <div class="section-title">Choose Your Pannel</div>
+        <div class="section-title">Choose Your Arena</div>
         <div class="main-heading">
             GBX Central.<br><span>Unlock Infinite Power.</span>
         </div>
 
-        <!-- Panel 1 (Active Link 1) -->
+        <!-- Panel 1 -->
         <div class="panel-card" onclick="openPanel('https://profexhub.org/?s=aHR0cHM6Ly9tYWZpYWFhYTJvcHBwLWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbXx8fEFJemFTeUJsMzE3OUc2MGMyTHpZUHJia3A0dG11UktLXzdIMF8wZw==')">
             <div class="card-top">
                 <span class="tag" style="color: #ff9800;">⚡ SERVER 1</span>
@@ -182,7 +141,7 @@
             </div>
         </div>
 
-        <!-- Panel 2 (Active Link 2) -->
+        <!-- Panel 2 -->
         <div class="panel-card" onclick="openPanel('https://profexhub.org/?s=aHR0cHM6Ly9wYWluaXNsdi1kZWZhdWx0LXJ0ZGIuZmlyZWJhc2Vpby5jb218fHxBSXphU3lDcTdqRFBnVkNhZTM2cTdGNUhiZFVFQjlGYmx1TThwRHM=')">
             <div class="card-top">
                 <span class="tag" style="color: #38bdf8;">💎 SERVER 2</span>
@@ -232,10 +191,10 @@
     </div>
 
     <script>
-        // Function to open link safely inside Telegram Web App without external redirect
         function openPanel(url) {
-            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
-                window.Telegram.WebApp.openLink(url);
+            if (window.Telegram && window.Telegram.WebApp) {
+                // Force open inside Telegram Mini App Browser without external redirect
+                window.Telegram.WebApp.openLink(url, { try_instant_view: false });
             } else {
                 window.open(url, '_blank');
             }
@@ -254,27 +213,15 @@
             let userPhoto = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150";
 
             let tgUser = window.Telegram.WebApp.initDataUnsafe.user;
-            if (tgUser.first_name) {
-                userName = tgUser.first_name;
-            }
-            if (tgUser.photo_url) {
-                userPhoto = tgUser.photo_url;
-            }
+            if (tgUser.first_name) { userName = tgUser.first_name; }
+            if (tgUser.photo_url) { userPhoto = tgUser.photo_url; }
             window.Telegram.WebApp.ready();
             window.Telegram.WebApp.expand();
 
             document.getElementById('userAvatar').src = userPhoto;
 
             const hour = new Date().getHours();
-            let greeting = "Good evening";
-            if (hour < 12) {
-                greeting = "Good morning";
-            } else if (hour < 17) {
-                greeting = "Good afternoon";
-            } else {
-                greeting = "Good evening";
-            }
-
+            let greeting = hour < 12 ? "Good morning" : (hour < 17 ? "Good afternoon" : "Good evening");
             document.getElementById('greetingText').innerHTML = `${greeting}, ${userName}! 👋`;
 
             setTimeout(() => {
@@ -283,12 +230,7 @@
                 setTimeout(() => {
                     loader.style.display = 'none';
                     document.getElementById('mainContent').style.display = 'flex';
-                    
-                    confetti({
-                        particleCount: 100,
-                        spread: 70,
-                        origin: { y: 0.6 }
-                    });
+                    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
                 }, 500);
             }, 2000);
         });
