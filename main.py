@@ -683,4 +683,16 @@ def run_bot():
       time.sleep(1)
       print("Bot Polling Active...")
       bot.infinity_polling(
-          timeout=30, long_polling_time
+          timeout=30, long_polling_timeout=30, skip_pending=True
+      )
+    except Exception as e:
+      print("Polling error:", e)
+      time.sleep(5)
+
+
+if __name__ == "__main__":
+  t = threading.Thread(target=run_bot, daemon=True)
+  t.start()
+
+  port = int(os.environ.get("PORT", 10000))
+  app.run(host="0.0.0.0", port=port)
