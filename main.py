@@ -71,12 +71,14 @@ def get_user_data(user_id):
     cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
     user = cursor.fetchone()
     if not user:
-      cursor.execute("INSERT INTO users (user_id) VALUES (?)", (user_id,))
+      cursor.execute("INSERT INTO users (user_id, panel_unlocked) VALUES (?, 0)", (user_id,))
       conn.commit()
       cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
       user = cursor.fetchone()
     conn.close()
-    return dict(user) if user else {"points": 0, "referral_count": 0, "panel_unlocked": 0, "referred_by": None}
+    if user:
+      return dict(user)
+    return {"points": 0, "referral_count": 0, "panel_unlocked": 0, "referred_by": None}
   except Exception as e:
     print("Get user error:", e)
     return {"points": 0, "referral_count": 0, "panel_unlocked": 0, "referred_by": None}
@@ -97,7 +99,7 @@ def add_user_points(user_id, points):
   try:
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+    cursor.execute("INSERT OR IGNORE INTO users (user_id, panel_unlocked) VALUES (?, 0)", (user_id,))
     cursor.execute("UPDATE users SET points = points + ? WHERE user_id = ?", (points, user_id))
     conn.commit()
     cursor.execute("SELECT points FROM users WHERE user_id = ?", (user_id,))
@@ -106,6 +108,18 @@ def add_user_points(user_id, points):
     return int(row["points"]) if row else points
   except Exception:
     return points
+
+
+def get_all_users():
+  try:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM users")
+    rows = cursor.fetchall()
+    conn.close()
+    return [row["user_id"] for row in rows]
+  except Exception:
+    return []
 
 
 def is_utr_used(utr):
@@ -286,6 +300,42 @@ def start_command(message):
     show_dynamic_force_join(message.chat.id, user_name, status_map)
 
 
+@bot.message_handler(commands=["admin"])
+def admin_command(message):
+  if message.chat.id != ADMIN_CHAT_ID:
+    return
+  markup = InlineKeyboardMarkup()
+  markup.add(InlineKeyboardButton(text="📬 Inbox (Broadcast)", callback_data="admin_broadcast_mode"))
+  bot.send_message(
+      message.chat.id,
+      "🛠️ **Admin Control Panel**\n\nSabhi users ko broadcast message bhejne ke liye niche button par click karein:",
+      reply_markup=markup,
+      parse_mode="Markdown"
+  )
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "admin_broadcast_mode")
+def admin_broadcast_callback(call):
+  if call.from_user.id != ADMIN_CHAT_ID:
+    return
+  user_states[ADMIN_CHAT_ID] = "waiting_for_broadcast"
+  bot.answer_callback_query(call.id, "Broadcast mode active!")
+  bot.send_message(
+      call.message.chat.id,
+      "✍️ **Ab aap jo bhi message (Text, Photo, Video, Sticker, Link, Forward) bhejenge, vah sabhi active users ke paas chala jayega.**\n\n"
+      "❌ Radd karne ke liye `/cancel` likhein.",
+      parse_mode="Markdown"
+  )
+
+
+@bot.message_handler(commands=["cancel"])
+def cancel_command(message):
+  if message.chat.id != ADMIN_CHAT_ID:
+    return
+  user_states.pop(ADMIN_CHAT_ID, None)
+  bot.send_message(message.chat.id, "❌ Broadcast mode cancel kar diya gaya hai.")
+
+
 @bot.callback_query_handler(func=lambda call: call.data == "verify_join")
 def handle_verification(call):
   if call.message.chat.type != "private":
@@ -405,7 +455,7 @@ def handle_pay_menu(call):
   if call.message.chat.type != "private":
     return
   user_id = call.from_user.id
-  user_states.pop(user_id, None)
+  user_states[user_id] = None
 
   upi_url = f"upi://pay?pa={UPI_ID}&pn=GBX_Panel&am={DIRECT_PAY_AMOUNT}&cu=INR"
   qr = qrcode.QRCode(box_size=10, border=2)
@@ -476,22 +526,48 @@ def handle_back_home(call):
   show_main_menu(call.message.chat.id, call.from_user.first_name)
 
 
-@bot.message_handler(func=lambda msg: msg.chat.type == "private" and msg.text)
-def handle_text_messages(message):
+@bot.message_handler(content_types=['text', 'photo', 'video', 'document', 'sticker', 'audio', 'animation'])
+def handle_all_messages(message):
   if message.chat.type != "private":
     return
   user_id = message.from_user.id
-  text = message.text.strip()
-  state = user_states.get(user_id)
 
+  # 1. Admin Broadcast Check
+  if user_id == ADMIN_CHAT_ID and user_states.get(ADMIN_CHAT_ID) == "waiting_for_utr" is False and user_states.get(ADMIN_CHAT_ID) == "waiting_for_broadcast":
+    user_states.pop(ADMIN_CHAT_ID, None)
+    users = get_all_users()
+    success = 0
+    fail = 0
+    
+    status_msg = bot.send_message(ADMIN_CHAT_ID, "🚀 Broadcasting message to all users...")
+
+    for uid in users:
+      try:
+        bot.copy_message(chat_id=uid, from_chat_id=ADMIN_CHAT_ID, message_id=message.message_id)
+        success += 1
+        time.sleep(0.05) # Rate limit protection
+      except Exception:
+        fail += 1
+
+    bot.edit_message_text(
+        f"✅ **Broadcast Completed!**\n\nSuccess: `{success}` users\nFailed: `{fail}` users",
+        ADMIN_CHAT_ID,
+        status_msg.message_id,
+        parse_mode="Markdown"
+    )
+    return
+
+  # 2. UTR Handling Check
+  state = user_states.get(user_id)
   if state == "waiting_for_utr":
-    if not text.isdigit() or len(text) != 12:
+    if not message.text or not message.text.strip().isdigit() or len(message.text.strip()) != 12:
       bot.send_message(
           message.chat.id,
           "❌ Kripya valid 12-digit UTR Number hi dalein.",
       )
       return
 
+    text = message.text.strip()
     if is_utr_used(text):
       bot.send_message(
           message.chat.id, "❌ Yeh UTR Number pehle hi use ho chuka hai!"
@@ -607,4 +683,3 @@ if __name__ == "__main__":
 
   port = int(os.environ.get("PORT", 10000))
   app.run(host="0.0.0.0", port=port)
-              
