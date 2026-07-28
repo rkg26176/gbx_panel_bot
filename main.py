@@ -76,32 +76,17 @@ def get_user_data(user_id):
       cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
       user = cursor.fetchone()
     conn.close()
-    return (
-        dict(user)
-        if user
-        else {
-            "points": 0,
-            "referral_count": 0,
-            "panel_unlocked": 0,
-            "referred_by": None,
-        }
-    )
-  except Exception:
-    return {
-        "points": 0,
-        "referral_count": 0,
-        "panel_unlocked": 0,
-        "referred_by": None,
-    }
+    return dict(user) if user else {"points": 0, "referral_count": 0, "panel_unlocked": 0, "referred_by": None}
+  except Exception as e:
+    print("Get user error:", e)
+    return {"points": 0, "referral_count": 0, "panel_unlocked": 0, "referred_by": None}
 
 
 def update_user_data(user_id, field, value):
   try:
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        f"UPDATE users SET {field} = ? WHERE user_id = ?", (value, user_id)
-    )
+    cursor.execute(f"UPDATE users SET {field} = ? WHERE user_id = ?", (value, user_id))
     conn.commit()
     conn.close()
   except Exception as e:
@@ -112,13 +97,8 @@ def add_user_points(user_id, points):
   try:
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,)
-    )
-    cursor.execute(
-        "UPDATE users SET points = points + ? WHERE user_id = ?",
-        (points, user_id),
-    )
+    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+    cursor.execute("UPDATE users SET points = points + ? WHERE user_id = ?", (points, user_id))
     conn.commit()
     cursor.execute("SELECT points FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
@@ -144,9 +124,7 @@ def add_used_utr(utr):
   try:
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT OR IGNORE INTO used_utrs (utr) VALUES (?)", (utr.strip(),)
-    )
+    cursor.execute("INSERT OR IGNORE INTO used_utrs (utr) VALUES (?)", (utr.strip(),))
     conn.commit()
     conn.close()
   except Exception:
@@ -250,16 +228,15 @@ def show_dynamic_force_join(chat_id, user_name, status_map, message_id=None):
 
 def show_main_menu(chat_id, user_name):
   user_data = get_user_data(chat_id)
-  panel_unlocked = user_data.get("panel_unlocked", 0)
-
-  text = (
-      f"✅ **Welcome to GBX Pannel Bot, {user_name}!**\n\n"
-      "Congratulations! Aapko Web Panel का access lene ke liye niche options"
-      " mil rahe hain 👇"
-  )
+  panel_unlocked = int(user_data.get("panel_unlocked", 0))
 
   markup = InlineKeyboardMarkup(row_width=1)
+  
   if panel_unlocked == 1:
+    text = (
+        f"✅ **Welcome back to GBX Pannel Bot, {user_name}!**\n\n"
+        "🎉 Aapka Web Panel pehle se **Unlocked** hai! Niche diye gaye button se apna panel open karein 👇"
+    )
     markup.add(
         InlineKeyboardButton(
             text="🌐 Open Web Mini App Panel",
@@ -267,6 +244,10 @@ def show_main_menu(chat_id, user_name):
         )
     )
   else:
+    text = (
+        f"✅ **Welcome to GBX Pannel Bot, {user_name}!**\n\n"
+        "Congratulations! Aapko Web Panel का access lene ke liye niche options mil rahe hain 👇"
+    )
     markup.add(
         InlineKeyboardButton(
             text="👥 5 Refer to Unlock Web Panel", callback_data="menu_refer"
@@ -339,7 +320,7 @@ def handle_refer_menu(call):
   user_data = get_user_data(user_id)
   refs = int(user_data.get("referral_count", 0))
   points = int(user_data.get("points", 0))
-  panel_unlocked = user_data.get("panel_unlocked", 0)
+  panel_unlocked = int(user_data.get("panel_unlocked", 0))
 
   try:
     bot_username = bot.get_me().username
@@ -352,8 +333,7 @@ def handle_refer_menu(call):
       f"⭐ Total Points: `{points}`\n"
       f"👥 Total Referrals: `{refs}/{REQUIRED_REFERRALS}`\n\n"
       f"🔗 **Your Referral Link:**\n`{ref_link}`\n\n"
-      "ℹ️ *Note: 1 Refer par 3 Points milte hain. Jaise hi aapke 5 refer ho"
-      " jayenge, aap niche button daba kar panel unlock kar sakte hain!*"
+      "ℹ️ *Note: 1 Refer par 3 Points milte hain. Jaise hi aapke 5 refer ho jayenge, aap niche button daba kar panel unlock kar sakte hain!*"
   )
 
   markup = InlineKeyboardMarkup()
@@ -392,7 +372,7 @@ def claim_referral_unlock(call):
   user_data = get_user_data(user_id)
   refs = int(user_data.get("referral_count", 0))
 
-  if user_data.get("panel_unlocked") == 1:
+  if int(user_data.get("panel_unlocked", 0)) == 1:
     bot.answer_callback_query(
         call.id,
         "✅ Aapka Web Panel pehle se unlocked hai!",
@@ -415,8 +395,7 @@ def claim_referral_unlock(call):
   else:
     bot.answer_callback_query(
         call.id,
-        f"❌ Aapke sirf {refs} refer hue hain. Kam se kam {REQUIRED_REFERRALS}"
-        " refer karein!",
+        f"❌ Aapke sirf {refs} refer hue hain. Kam se kam {REQUIRED_REFERRALS} refer karein!",
         show_alert=True,
     )
 
@@ -426,13 +405,9 @@ def handle_pay_menu(call):
   if call.message.chat.type != "private":
     return
   user_id = call.from_user.id
-  user_states.pop(
-      user_id, None
-  )  # State reset rakhenge jab tak button na dabaye
+  user_states.pop(user_id, None)
 
-  upi_url = (
-      f"upi://pay?pa={UPI_ID}&pn=GBX_Panel&am={DIRECT_PAY_AMOUNT}&cu=INR"
-  )
+  upi_url = f"upi://pay?pa={UPI_ID}&pn=GBX_Panel&am={DIRECT_PAY_AMOUNT}&cu=INR"
   qr = qrcode.QRCode(box_size=10, border=2)
   qr.add_data(upi_url)
   qr.make(fit=True)
@@ -448,8 +423,7 @@ def handle_pay_menu(call):
       f"📍 **UPI ID:** `{UPI_ID}`\n\n"
       "📲 **Instructions:**\n"
       "1. Upar QR Code ko scan karke ₹15 ki exact payment karein.\n"
-      "2. Payment hone ke baad niche **'📝 Submit UTR'** button par click"
-      " karke apna 12-digit UTR Number bhejein."
+      "2. Payment hone ke baad niche **'📝 Submit UTR'** button par click karke apna 12-digit UTR Number bhejein."
   )
   try:
     bot.delete_message(call.message.chat.id, call.message.message_id)
@@ -476,7 +450,7 @@ def handle_start_utr(call):
   if call.message.chat.type != "private":
     return
   user_id = call.from_user.id
-  user_states[user_id] = "waiting_for_utr"  # Ab state active hogi
+  user_states[user_id] = "waiting_for_utr"
 
   bot.answer_callback_query(call.id, "Kripya ab apna 12-digit UTR number type karke bhejein!")
   try:
@@ -502,9 +476,7 @@ def handle_back_home(call):
   show_main_menu(call.message.chat.id, call.from_user.first_name)
 
 
-@bot.message_handler(
-    func=lambda msg: msg.chat.type == "private" and msg.text
-)
+@bot.message_handler(func=lambda msg: msg.chat.type == "private" and msg.text)
 def handle_text_messages(message):
   if message.chat.type != "private":
     return
@@ -512,7 +484,6 @@ def handle_text_messages(message):
   text = message.text.strip()
   state = user_states.get(user_id)
 
-  # Jab tak user ne 'Submit UTR' button click nahi kiya hoga, tab tak yeh yahan response hi nahi dega
   if state == "waiting_for_utr":
     if not text.isdigit() or len(text) != 12:
       bot.send_message(
@@ -544,8 +515,7 @@ def handle_text_messages(message):
     try:
       bot.send_message(
           ADMIN_CHAT_ID,
-          f"📥 **Panel Payment Request!**\nUser ID: `{user_id}`\nAmount: ₹{DIRECT_PAY_AMOUNT}\nUTR:"
-          f" `{text}`",
+          f"📥 **Panel Payment Request!**\nUser ID: `{user_id}`\nAmount: ₹{DIRECT_PAY_AMOUNT}\nUTR: `{text}`",
           reply_markup=markup,
           parse_mode="Markdown",
       )
@@ -593,8 +563,7 @@ def admin_action(call):
       )
       bot.send_message(
           target,
-          "🎉 **Payment Verified Successfully!**\nAapka Web Mini App Panel"
-          " lifetime ke liye unlock kar diya gaya hai 👇",
+          "🎉 **Payment Verified Successfully!**\nAapka Web Mini App Panel lifetime ke liye unlock kar diya gaya hai 👇",
           reply_markup=markup,
           parse_mode="Markdown",
       )
@@ -638,4 +607,4 @@ if __name__ == "__main__":
 
   port = int(os.environ.get("PORT", 10000))
   app.run(host="0.0.0.0", port=port)
-      
+              
