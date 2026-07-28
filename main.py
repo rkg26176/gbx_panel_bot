@@ -12,6 +12,7 @@ from telebot.types import (
     InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
+    WebAppInfo,
 )
 
 BOT_NAME = "GBX PANNEL BOT"
@@ -24,6 +25,9 @@ UPI_ID = "BHARATPE.8R0I1G1N4X31943@fbpe"
 REFERRAL_REWARD_POINTS = 3
 REQUIRED_REFERRALS = 5
 DIRECT_PAY_AMOUNT = 15.0
+
+# GitHub Pages Web App Link
+MINI_APP_URL = "https://rkg26176.github.io/gbx_panel_bot/"
 
 app = Flask(__name__)
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode=None)
@@ -251,7 +255,7 @@ def show_main_menu(chat_id, user_name):
 
   text = (
       f"✅ **Welcome to GBX Pannel Bot, {user_name}!**\n\n"
-      "Congratulations! Aapko Web Panel ka access lene ke liye niche options"
+      "Congratulations! Aapko Web Panel का access lene ke liye niche options"
       " mil rahe hain 👇"
   )
 
@@ -259,7 +263,8 @@ def show_main_menu(chat_id, user_name):
   if panel_unlocked == 1:
     markup.add(
         InlineKeyboardButton(
-            text="🌐 Open Web Mini App Panel", url="https://t.me/"
+            text="🌐 Open Web Mini App Panel",
+            web_app=WebAppInfo(url=MINI_APP_URL),
         )
     )
   else:
@@ -356,7 +361,8 @@ def handle_refer_menu(call):
   if panel_unlocked == 1:
     markup.add(
         InlineKeyboardButton(
-            text="🌐 Open Web Mini App Panel", url="https://t.me/"
+            text="🌐 Open Web Mini App Panel",
+            web_app=WebAppInfo(url=MINI_APP_URL),
         )
     )
   else:
@@ -560,7 +566,8 @@ def admin_action(call):
       markup = InlineKeyboardMarkup()
       markup.add(
           InlineKeyboardButton(
-              text="🌐 Open Web Mini App Panel", url="https://t.me/"
+              text="🌐 Open Web Mini App Panel",
+              web_app=WebAppInfo(url=MINI_APP_URL),
           )
       )
       bot.send_message(
@@ -610,4 +617,4 @@ if __name__ == "__main__":
 
   port = int(os.environ.get("PORT", 10000))
   app.run(host="0.0.0.0", port=port)
-    
+      
