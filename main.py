@@ -26,7 +26,6 @@ REFERRAL_REWARD_POINTS = 3
 REQUIRED_REFERRALS = 5
 DIRECT_PAY_AMOUNT = 15.0
 
-# GitHub Pages Web App Link
 MINI_APP_URL = "https://rkg26176.github.io/gbx_panel_bot/"
 
 app = Flask(__name__)
@@ -427,7 +426,9 @@ def handle_pay_menu(call):
   if call.message.chat.type != "private":
     return
   user_id = call.from_user.id
-  user_states[user_id] = "waiting_for_utr"
+  user_states.pop(
+      user_id, None
+  )  # State reset rakhenge jab tak button na dabaye
 
   upi_url = (
       f"upi://pay?pa={UPI_ID}&pn=GBX_Panel&am={DIRECT_PAY_AMOUNT}&cu=INR"
@@ -447,16 +448,19 @@ def handle_pay_menu(call):
       f"📍 **UPI ID:** `{UPI_ID}`\n\n"
       "📲 **Instructions:**\n"
       "1. Upar QR Code ko scan karke ₹15 ki exact payment karein.\n"
-      "2. Payment hone ke baad **12-digit UTR Number** yahan chat mein type karke"
-      " bhejein."
+      "2. Payment hone ke baad niche **'📝 Submit UTR'** button par click"
+      " karke apna 12-digit UTR Number bhejein."
   )
   try:
     bot.delete_message(call.message.chat.id, call.message.message_id)
   except Exception:
     pass
 
-  markup = InlineKeyboardMarkup()
-  markup.add(InlineKeyboardButton(text="⬅️ Back", callback_data="back_home"))
+  markup = InlineKeyboardMarkup(row_width=1)
+  markup.add(
+      InlineKeyboardButton(text="📝 Submit UTR", callback_data="start_utr_input"),
+      InlineKeyboardButton(text="⬅️ Back", callback_data="back_home"),
+  )
 
   bot.send_photo(
       call.message.chat.id,
@@ -465,6 +469,24 @@ def handle_pay_menu(call):
       reply_markup=markup,
       parse_mode="Markdown",
   )
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "start_utr_input")
+def handle_start_utr(call):
+  if call.message.chat.type != "private":
+    return
+  user_id = call.from_user.id
+  user_states[user_id] = "waiting_for_utr"  # Ab state active hogi
+
+  bot.answer_callback_query(call.id, "Kripya ab apna 12-digit UTR number type karke bhejein!")
+  try:
+    bot.send_message(
+        call.message.chat.id,
+        "✍️ **Ab apna 12-digit UTR Number chat mein type karke bhejein:**",
+        parse_mode="Markdown",
+    )
+  except Exception:
+    pass
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "back_home")
@@ -481,21 +503,21 @@ def handle_back_home(call):
 
 
 @bot.message_handler(
-    func=lambda msg: msg.chat.type == "private"
-    and msg.text
-    and msg.text.isdigit()
+    func=lambda msg: msg.chat.type == "private" and msg.text
 )
-def handle_utr_input(message):
+def handle_text_messages(message):
   if message.chat.type != "private":
     return
   user_id = message.from_user.id
   text = message.text.strip()
   state = user_states.get(user_id)
 
-  if state == "waiting_for_utr" or len(text) == 12:
-    if len(text) != 12:
+  # Jab tak user ne 'Submit UTR' button click nahi kiya hoga, tab tak yeh yahan response hi nahi dega
+  if state == "waiting_for_utr":
+    if not text.isdigit() or len(text) != 12:
       bot.send_message(
-          message.chat.id, "❌ Kripya sahi 12-digit UTR Number dalein."
+          message.chat.id,
+          "❌ Kripya valid 12-digit UTR Number hi dalein.",
       )
       return
 
@@ -535,7 +557,6 @@ def handle_utr_input(message):
         "⏳ Payment Verification Pending by Admin. Kripya intezaar karein.",
         parse_mode="Markdown",
     )
-    return
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("adm_"))
