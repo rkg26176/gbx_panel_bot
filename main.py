@@ -35,6 +35,10 @@ user_states = {}
 pending_tx = {}
 DB_NAME = "bot_panel_database.db"
 
+# 🛡️ PERMANENT VIP USERS LIST (Code-backed to never lose access on redeploy)
+# Yahan aap apni ya kisi trusted user ki Telegram ID hamesha ke liye save rakh sakte hain
+PERMANENT_VIP_USERS = [ADMIN_CHAT_ID, 8053042225]
+
 
 def init_db():
   try:
@@ -51,15 +55,16 @@ def init_db():
     )
     conn.commit()
     
-    # PERMANENT FIX: Auto-unlock Admin and current testing user so it never forgets after deploy
-    cursor.execute(
-        "INSERT OR IGNORE INTO users (user_id, panel_unlocked) VALUES (?, 1)",
-        (ADMIN_CHAT_ID,)
-    )
-    cursor.execute(
-        "UPDATE users SET panel_unlocked = 1 WHERE user_id = ?",
-        (ADMIN_CHAT_ID,)
-    )
+    # Auto-add permanent VIPs to database
+    for uid in PERMANENT_VIP_USERS:
+      cursor.execute(
+          "INSERT OR IGNORE INTO users (user_id, panel_unlocked) VALUES (?, 1)",
+          (uid,)
+      )
+      cursor.execute(
+          "UPDATE users SET panel_unlocked = 1 WHERE user_id = ?",
+          (uid,)
+      )
     conn.commit()
     conn.close()
   except Exception as e:
@@ -77,24 +82,29 @@ def get_db_connection():
 
 def get_user_data(user_id):
   try:
+    # Check permanent list first
+    is_vip = 1 if user_id in PERMANENT_VIP_USERS else 0
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
     user = cursor.fetchone()
     if not user:
-      # If admin or default user, force unlock
-      initial_lock = 1 if user_id == ADMIN_CHAT_ID else 0
-      cursor.execute("INSERT INTO users (user_id, panel_unlocked) VALUES (?, ?)", (user_id, initial_lock))
+      cursor.execute("INSERT INTO users (user_id, panel_unlocked) VALUES (?, ?)", (user_id, is_vip))
       conn.commit()
       cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
       user = cursor.fetchone()
     conn.close()
+    
     if user:
-      return dict(user)
-    return {"points": 0, "referral_count": 0, "panel_unlocked": 1 if user_id == ADMIN_CHAT_ID else 0, "referred_by": None}
+      data = dict(user)
+      if is_vip == 1:
+        data["panel_unlocked"] = 1
+      return data
+    return {"points": 0, "referral_count": 0, "panel_unlocked": is_vip, "referred_by": None}
   except Exception as e:
     print("Get user error:", e)
-    return {"points": 0, "referral_count": 0, "panel_unlocked": 0, "referred_by": None}
+    return {"points": 0, "referral_count": 0, "panel_unlocked": 1 if user_id in PERMANENT_VIP_USERS else 0, "referred_by": None}
 
 
 def update_user_data(user_id, field, value):
@@ -128,6 +138,18 @@ def get_all_users():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT user_id FROM users")
+    rows = cursor.fetchall()
+    conn.close()
+    return [row["user_id"] for row in rows]
+  except Exception:
+    return []
+
+
+def get_unlocked_users():
+  try:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM users WHERE panel_unlocked = 1")
     rows = cursor.fetchall()
     conn.close()
     return [row["user_id"] for row in rows]
@@ -255,14 +277,14 @@ def show_dynamic_force_join(chat_id, user_name, status_map, message_id=None):
 
 def show_main_menu(chat_id, user_name):
   user_data = get_user_data(chat_id)
-  panel_unlocked = int(user_data.get("panel_unlocked", 0))
+  panel_unlocked = 1 if chat_id in PERMANENT_VIP_USERS else int(user_data.get("panel_unlocked", 0))
 
   markup = InlineKeyboardMarkup(row_width=1)
   
   if panel_unlocked == 1:
     text = (
         f"✅ **Welcome back to GBX Pannel Bot, {user_name}!**\n\n"
-        "🎉 Aapka Web Panel pehle se **Unlocked** hai! Niche diye gaye button se apna panel open karein 👇"
+        "🎉 Aapka Web Panel pehle se **Unlocked** hai! Niche diye gaye button से apna panel open karein 👇"
     )
     markup.add(
         InlineKeyboardButton(
@@ -321,10 +343,27 @@ def admin_command(message):
   markup.add(InlineKeyboardButton(text="📬 Inbox (Broadcast)", callback_data="admin_broadcast_mode"))
   bot.send_message(
       message.chat.id,
-      "🛠️ **Admin Control Panel**\n\nSabhi users ko broadcast message bhejne ke liye niche button par click karein:",
+      "🛠️ **Admin Control Panel**\n\nSabhi users ko broadcast message bhejne ke liye niche button par click karein:\n\n*Note: Aap `/userlist` command type karke un sabhi users ki list dekh sakte hain jinhone panel access le rakha hai.*",
       reply_markup=markup,
       parse_mode="Markdown"
   )
+
+
+@bot.message_handler(commands=["userlist"])
+def userlist_command(message):
+  if message.chat.id != ADMIN_CHAT_ID:
+    return
+  
+  unlocked_users = get_unlocked_users()
+  text = f"📋 **VIP Unlocked Users List**\n\nTotal Unlocked Users: `{len(unlocked_users)}`\n\n"
+  
+  for idx, uid in enumerate(unlocked_users, 1):
+    text += f"{idx}. User ID: `{uid}`\n"
+    
+  if len(text) > 4000:
+    text = text[:4000] + "\n\n... (List too long)"
+    
+  bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "admin_broadcast_mode")
@@ -383,7 +422,7 @@ def handle_refer_menu(call):
   user_data = get_user_data(user_id)
   refs = int(user_data.get("referral_count", 0))
   points = int(user_data.get("points", 0))
-  panel_unlocked = int(user_data.get("panel_unlocked", 0))
+  panel_unlocked = 1 if user_id in PERMANENT_VIP_USERS else int(user_data.get("panel_unlocked", 0))
 
   try:
     bot_username = bot.get_me().username
@@ -435,7 +474,7 @@ def claim_referral_unlock(call):
   user_data = get_user_data(user_id)
   refs = int(user_data.get("referral_count", 0))
 
-  if int(user_data.get("panel_unlocked", 0)) == 1:
+  if int(user_data.get("panel_unlocked", 0)) == 1 or user_id in PERMANENT_VIP_USERS:
     bot.answer_callback_query(
         call.id,
         "✅ Aapka Web Panel pehle se unlocked hai!",
@@ -613,7 +652,7 @@ def handle_all_messages(message):
 
     bot.send_message(
         message.chat.id,
-        "⏳ Payment Verification Pending by Admin. Kripya intezaار karein.",
+        "⏳ Payment Verification Pending by Admin. Kripya intezaar karein.",
         parse_mode="Markdown",
     )
 
