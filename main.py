@@ -50,6 +50,17 @@ def init_db():
         "CREATE TABLE IF NOT EXISTS used_utrs (utr TEXT PRIMARY KEY)"
     )
     conn.commit()
+    
+    # PERMANENT FIX: Auto-unlock Admin and current testing user so it never forgets after deploy
+    cursor.execute(
+        "INSERT OR IGNORE INTO users (user_id, panel_unlocked) VALUES (?, 1)",
+        (ADMIN_CHAT_ID,)
+    )
+    cursor.execute(
+        "UPDATE users SET panel_unlocked = 1 WHERE user_id = ?",
+        (ADMIN_CHAT_ID,)
+    )
+    conn.commit()
     conn.close()
   except Exception as e:
     print("DB Error:", e)
@@ -71,14 +82,16 @@ def get_user_data(user_id):
     cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
     user = cursor.fetchone()
     if not user:
-      cursor.execute("INSERT INTO users (user_id, panel_unlocked) VALUES (?, 0)", (user_id,))
+      # If admin or default user, force unlock
+      initial_lock = 1 if user_id == ADMIN_CHAT_ID else 0
+      cursor.execute("INSERT INTO users (user_id, panel_unlocked) VALUES (?, ?)", (user_id, initial_lock))
       conn.commit()
       cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
       user = cursor.fetchone()
     conn.close()
     if user:
       return dict(user)
-    return {"points": 0, "referral_count": 0, "panel_unlocked": 0, "referred_by": None}
+    return {"points": 0, "referral_count": 0, "panel_unlocked": 1 if user_id == ADMIN_CHAT_ID else 0, "referred_by": None}
   except Exception as e:
     print("Get user error:", e)
     return {"points": 0, "referral_count": 0, "panel_unlocked": 0, "referred_by": None}
@@ -600,7 +613,7 @@ def handle_all_messages(message):
 
     bot.send_message(
         message.chat.id,
-        "⏳ Payment Verification Pending by Admin. Kripya intezaar karein.",
+        "⏳ Payment Verification Pending by Admin. Kripya intezaار karein.",
         parse_mode="Markdown",
     )
 
@@ -670,16 +683,4 @@ def run_bot():
       time.sleep(1)
       print("Bot Polling Active...")
       bot.infinity_polling(
-          timeout=30, long_polling_timeout=30, skip_pending=True
-      )
-    except Exception as e:
-      print("Polling error:", e)
-      time.sleep(5)
-
-
-if __name__ == "__main__":
-  t = threading.Thread(target=run_bot, daemon=True)
-  t.start()
-
-  port = int(os.environ.get("PORT", 10000))
-  app.run(host="0.0.0.0", port=port)
+          timeout=30, long_polling_time
