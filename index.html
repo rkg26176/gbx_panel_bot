@@ -6,7 +6,6 @@
     <title>GBX VIP Arena</title>
     <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Confetti Library for Party Popper Animation -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
         * {
@@ -22,9 +21,61 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: center;
             overflow-x: hidden;
         }
-        /* Loading & Confetti Screen */
+        /* Lock Screen Styling */
+        #lockScreen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            width: 100%;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            background-color: #0b0f19;
+            z-index: 99999;
+        }
+        .lock-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+        .lock-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: #ffffff;
+        }
+        .lock-desc {
+            font-size: 14px;
+            color: #a0aec0;
+            margin-bottom: 30px;
+            max-width: 300px;
+            line-height: 1.5;
+        }
+        .bot-btn {
+            background-color: #0ea5e9;
+            color: #ffffff;
+            padding: 14px 28px;
+            border-radius: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4);
+            transition: background 0.2s;
+        }
+        .bot-btn:hover {
+            background-color: #0284c7;
+        }
+
+        /* Loading & App Content Styles */
         #loader {
             position: fixed;
             top: 0;
@@ -57,17 +108,13 @@
             font-size: 16px;
             letter-spacing: 1px;
         }
-
-        /* Main Container */
         .container {
             width: 100%;
             max-width: 480px;
             padding: 20px;
-            display: none; /* Shown after load */
+            display: none;
             flex-direction: column;
         }
-
-        /* Top Header */
         .header {
             display: flex;
             align-items: center;
@@ -121,8 +168,6 @@
             50% { transform: scale(1.2); opacity: 1; }
             100% { transform: scale(0.95); opacity: 0.8; }
         }
-
-        /* Stats Bar */
         .stats-bar {
             background: rgba(255, 255, 255, 0.03);
             border: 1px solid rgba(255, 255, 255, 0.08);
@@ -142,8 +187,6 @@
             align-items: center;
             gap: 5px;
         }
-
-        /* Title section */
         .section-title {
             font-size: 12px;
             letter-spacing: 1.5px;
@@ -161,8 +204,6 @@
         .main-heading span {
             color: #ff5722;
         }
-
-        /* Panel Cards */
         .panel-card {
             background: #141b2d;
             border: 1px solid rgba(255, 255, 255, 0.08);
@@ -243,8 +284,6 @@
             font-weight: 600;
             border: 1px solid rgba(255, 255, 255, 0.05);
         }
-
-        /* Footer */
         .footer {
             text-align: center;
             padding: 20px 0;
@@ -258,7 +297,17 @@
 </head>
 <body>
 
-    <!-- Loading Screen with Confetti trigger -->
+    <!-- Lock Screen for External Browsers (Chrome/Safari) -->
+    <div id="lockScreen">
+        <div class="lock-icon">🔒</div>
+        <div class="lock-title">Open in Telegram</div>
+        <div class="lock-desc">This app works only inside our Telegram bot.</div>
+        <a href="https://t.me/gbx_panel_bot" class="bot-btn">
+            Open Our Telegram Bot ➔
+        </a>
+    </div>
+
+    <!-- Loading Screen -->
     <div id="loader">
         <div class="spinner"></div>
         <div class="loader-text">Verifying Access...</div>
@@ -266,7 +315,6 @@
 
     <!-- Main Content Container -->
     <div class="container" id="mainContent">
-        <!-- Header -->
         <div class="header">
             <div class="user-info">
                 <img id="userAvatar" src="https://via.placeholder.com/150" alt="Avatar" class="avatar">
@@ -280,13 +328,11 @@
             </div>
         </div>
 
-        <!-- Stats Bar -->
         <div class="stats-bar">
             <span>VIP Access Active</span>
             <span class="stats-right">🔥 Unlimited Services</span>
         </div>
 
-        <!-- Title -->
         <div class="section-title">Choose Your Arena</div>
         <div class="main-heading">
             GBX Central.<br><span>Unlock Infinite Power.</span>
@@ -356,35 +402,39 @@
             </div>
         </a>
 
-        <!-- Footer -->
         <div class="footer">
             Developed by GBX
         </div>
     </div>
 
     <script>
-        // Telegram Data & Dynamic Greeting Logic
         window.addEventListener('DOMContentLoaded', () => {
-            let userName = "Rounak"; // Default fallback name
-            let userPhoto = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"; // Fallback avatar
+            // Check if opened inside Telegram WebApp
+            const isTelegram = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user;
 
-            // Try fetching real Telegram user data if opened via Telegram WebApp
-            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-                let tgUser = window.Telegram.WebApp.initDataUnsafe.user;
-                if (tgUser.first_name) {
-                    userName = tgUser.first_name;
-                }
-                if (tgUser.photo_url) {
-                    userPhoto = tgUser.photo_url;
-                }
-                window.Telegram.WebApp.ready();
-                window.Telegram.WebApp.expand();
+            if (!isTelegram) {
+                // If opened in external browser, show Lock Screen
+                document.getElementById('lockScreen').style.display = 'flex';
+                document.getElementById('loader').style.display = 'none';
+                return;
             }
 
-            // Set Avatar & Name
+            // If opened inside Telegram, proceed normally
+            let userName = "Rounak";
+            let userPhoto = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150";
+
+            let tgUser = window.Telegram.WebApp.initDataUnsafe.user;
+            if (tgUser.first_name) {
+                userName = tgUser.first_name;
+            }
+            if (tgUser.photo_url) {
+                userPhoto = tgUser.photo_url;
+            }
+            window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand();
+
             document.getElementById('userAvatar').src = userPhoto;
 
-            // Dynamic Time-based Greeting
             const hour = new Date().getHours();
             let greeting = "Good evening";
             if (hour < 12) {
@@ -397,7 +447,6 @@
 
             document.getElementById('greetingText').innerHTML = `${greeting}, ${userName}! 👋`;
 
-            // Loading simulation with Confetti blast after 2 seconds
             setTimeout(() => {
                 const loader = document.getElementById('loader');
                 loader.style.opacity = '0';
@@ -405,7 +454,6 @@
                     loader.style.display = 'none';
                     document.getElementById('mainContent').style.display = 'flex';
                     
-                    // Trigger Party Popper Confetti Blast
                     confetti({
                         particleCount: 100,
                         spread: 70,
@@ -416,5 +464,4 @@
         });
     </script>
 </body>
-  </html>
-  
+</html>
