@@ -290,7 +290,7 @@ def show_main_menu(chat_id, user_name):
   if panel_unlocked == 1:
     text = (
         f"✅ **Welcome back to GBX Pannel Bot, {user_name}!**\n\n"
-        "🎉 Aapka Web Panel pehle se **Unlocked** hai! Niche diye gaye button से apna panel open karein 👇"
+        "🎉 Aapka Web Panel pehle se **Unlocked** hai! Niche diye gaye button se apna panel open karein 👇"
     )
     markup.add(
         InlineKeyboardButton(
@@ -301,7 +301,7 @@ def show_main_menu(chat_id, user_name):
   else:
     text = (
         f"✅ **Welcome to GBX Pannel Bot, {user_name}!**\n\n"
-        "Congratulations! Aapko Web Panel का access lene ke liye niche options mil rahe hain 👇"
+        "Congratulations! Aapko Web Panel का access lene ke liye niche options mil رہے hain 👇"
     )
     markup.add(
         InlineKeyboardButton(
@@ -344,7 +344,24 @@ def start_command(message):
 
 
 # ==========================================
-# 🛠️ UPDATED ADMIN MASTER DASHBOARD (/admin)
+# 🌐 /panel COMMAND (Menu Button Option)
+# ==========================================
+@bot.message_handler(commands=["panel"])
+def panel_command(message):
+  if message.chat.type != "private":
+    return
+  user_id = message.from_user.id
+  user_name = message.from_user.first_name
+
+  status_map = get_user_status_map(user_id)
+  if all(status_map.values()):
+    show_main_menu(message.chat.id, user_name)
+  else:
+    show_dynamic_force_join(message.chat.id, user_name, status_map)
+
+
+# ==========================================
+# 🛠️ UPDATED ADMIN MASTER DASHBOARD (/admin) - WITHOUT MANAGE VIP
 # ==========================================
 @bot.message_handler(commands=["admin"])
 def admin_command(message):
@@ -354,8 +371,7 @@ def admin_command(message):
   markup = InlineKeyboardMarkup(row_width=1)
   markup.add(
       InlineKeyboardButton(text="📬 Inbox (Broadcast)", callback_data="admin_broadcast_mode"),
-      InlineKeyboardButton(text="👥 User List & Management", callback_data="admin_userlist_menu"),
-      InlineKeyboardButton(text="⭐ Manage VIP Access (/access)", callback_data="admin_access_menu")
+      InlineKeyboardButton(text="👥 User List & Management", callback_data="admin_userlist_menu")
   )
   bot.send_message(
       message.chat.id,
@@ -409,7 +425,7 @@ def userlist_command(message):
 
 
 # ==========================================
-# ⚙️ UPDATED ACCESS COMMAND (/access)
+# ⚙️ DIRECT ACCESS COMMAND (/access)
 # ==========================================
 @bot.message_handler(commands=["access"])
 def access_command(message):
@@ -432,14 +448,11 @@ def access_command(message):
 # ==========================================
 # 🕹️ CALLBACK HANDLERS FOR ADMIN & BUTTONS
 # ==========================================
-@bot.callback_query_handler(func=lambda call: call.data in ["admin_userlist_menu", "admin_access_menu"])
+@bot.callback_query_handler(func=lambda call: call.data == "admin_userlist_menu")
 def handle_admin_menu_callbacks(call):
   if call.from_user.id != ADMIN_CHAT_ID:
     return
-  if call.data == "admin_userlist_menu":
-    userlist_command(call.message)
-  elif call.data == "admin_access_menu":
-    access_command(call.message)
+  userlist_command(call.message)
 
 
 @bot.callback_query_handler(func=lambda call: call.data in ["add_vip_prompt", "remove_vip_prompt"])
@@ -462,7 +475,7 @@ def handle_vip_prompts(call):
     user_states[ADMIN_CHAT_ID] = "waiting_for_remove_vip"
     bot.send_message(
         call.message.chat.id,
-        "👉 Jise VIP list se hatana hai uski **User ID** chat mein bhejein:\n\n❌ Cancel karne के liye `/cancel` likhein."
+        "👉 Jise VIP list se hatana hai uski **User ID** chat mein bhejein:\n\n❌ Cancel karne ke liye `/cancel` likhein."
     )
 
 
@@ -720,7 +733,7 @@ def handle_all_messages(message):
     try:
       target_id = int(message.text.strip())
       update_user_data(target_id, "panel_unlocked", 1)
-      bot.reply_to(message, f"✅ Success! User `{target_id}` ko VIP / Mini Web access de diya gaya hai.", parse_mode="Markdown")
+      bot.reply_to(message, f"✅ Success! User `{target_id}` ko VIP / Mini Web access de diya gaya है.", parse_mode="Markdown")
       try:
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton(text="🌐 Open Web Mini App Panel", web_app=WebAppInfo(url=MINI_APP_URL)))
@@ -785,7 +798,7 @@ def handle_all_messages(message):
 
     bot.send_message(
         message.chat.id,
-        "⏳ Payment Verification Pending by Admin. Kripya intezaar karein."
+        "⏳ Payment Verification Pending by Admin. Kripya intezaار karein."
     )
 
 
@@ -848,13 +861,13 @@ def admin_action(call):
       pass
 
 
-# 🔵 TELEGRAM CHAT BOX BLUE MENU BUTTON SETTER
+# 🔵 TELEGRAM CHAT BOX BLUE MENU BUTTON SETTER (WITHOUT /access)
 def set_bot_commands(bot_instance):
   commands = [
-      BotCommand("start", "Start the bot and open panel"),
+      BotCommand("start", "Start the bot"),
+      BotCommand("panel", "Open Web Panel / Unlock Menu"),
       BotCommand("admin", "Open Admin Master Dashboard"),
-      BotCommand("userlist", "View normal and VIP users list"),
-      BotCommand("access", "Quick Add/Remove VIP access")
+      BotCommand("userlist", "View normal and VIP users list")
   ]
   try:
     bot_instance.set_my_commands(commands)
