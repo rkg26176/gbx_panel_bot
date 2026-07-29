@@ -13,6 +13,7 @@ from telebot.types import (
     KeyboardButton,
     ReplyKeyboardMarkup,
     WebAppInfo,
+    BotCommand,
 )
 
 BOT_NAME = "GBX PANNEL BOT"
@@ -289,7 +290,7 @@ def show_main_menu(chat_id, user_name):
   if panel_unlocked == 1:
     text = (
         f"✅ **Welcome back to GBX Pannel Bot, {user_name}!**\n\n"
-        "🎉 Aapka Web Panel pehle se **Unlocked** hai! Niche diye gaye button se apna panel open karein 👇"
+        "🎉 Aapka Web Panel pehle se **Unlocked** hai! Niche diye gaye button से apna panel open karein 👇"
     )
     markup.add(
         InlineKeyboardButton(
@@ -322,7 +323,6 @@ def start_command(message):
   user_name = message.from_user.first_name
   user_states.pop(user_id, None)
 
-  # Auto register user immediately on start
   register_or_get_user(user_id)
 
   user_data = register_or_get_user(user_id)
@@ -343,35 +343,127 @@ def start_command(message):
     show_dynamic_force_join(message.chat.id, user_name, status_map)
 
 
+# ==========================================
+# 🛠️ UPDATED ADMIN MASTER DASHBOARD (/admin)
+# ==========================================
 @bot.message_handler(commands=["admin"])
 def admin_command(message):
   if message.chat.id != ADMIN_CHAT_ID:
     return
-  markup = InlineKeyboardMarkup()
-  markup.add(InlineKeyboardButton(text="📬 Inbox (Broadcast)", callback_data="admin_broadcast_mode"))
+  
+  markup = InlineKeyboardMarkup(row_width=1)
+  markup.add(
+      InlineKeyboardButton(text="📬 Inbox (Broadcast)", callback_data="admin_broadcast_mode"),
+      InlineKeyboardButton(text="👥 User List & Management", callback_data="admin_userlist_menu"),
+      InlineKeyboardButton(text="⭐ Manage VIP Access (/access)", callback_data="admin_access_menu")
+  )
   bot.send_message(
       message.chat.id,
-      "🛠️ **Admin Control Panel**\n\nSabhi users ko broadcast message bhejne ke liye niche button par click karein:\n\n*Note: Aap `/userlist` command type karke un sabhi users ki list dekh sakte hain jinhone bot start kiya hai.*",
+      "🛠️ **Admin Master Dashboard**\n\n"
+      "Sabhi controls niche diye gaye buttons mein hain, click karein:",
       reply_markup=markup,
       parse_mode="Markdown"
   )
 
 
+# ==========================================
+# 📋 UPDATED USERLIST (/userlist - Two Lists)
+# ==========================================
 @bot.message_handler(commands=["userlist"])
 def userlist_command(message):
   if message.chat.id != ADMIN_CHAT_ID:
     return
   
   all_users = get_all_users()
-  text = f"📋 **All Registered Users List**\n\nTotal Users: `{len(all_users)}`\n\n"
+  unlocked_users = get_unlocked_users()
+  normal_users = [uid for uid in all_users if uid not in unlocked_users]
+
+  text = f"📋 **All Registered Users List**\n\n"
   
-  for idx, uid in enumerate(all_users, 1):
-    text += f"{idx}. User ID: `{uid}`\n"
-    
+  text += f"🟢 **1. Normal / Active Users ({len(normal_users)}):**\n"
+  if normal_users:
+    for idx, uid in enumerate(normal_users[:15], 1):
+      text += f"{idx}. User ID: `{uid}`\n"
+    if len(normal_users) > 15:
+      text += f"...aur baaki users\n"
+  else:
+    text += "Koi normal user nahi hai.\n"
+
+  text += f"\n⭐ **2. VIP / Mini Web Unlocked Users ({len(unlocked_users)}):**\n"
+  if unlocked_users:
+    for idx, uid in enumerate(unlocked_users, 1):
+      text += f"{idx}. User ID: `{uid}`\n"
+  else:
+    text += "Koi VIP user nahi hai.\n"
+
+  markup = InlineKeyboardMarkup(row_width=1)
+  markup.add(
+      InlineKeyboardButton(text="➕ Direct Add VIP", callback_data="add_vip_prompt"),
+      InlineKeyboardButton(text="➖ Direct Remove VIP", callback_data="remove_vip_prompt")
+  )
+
   if len(text) > 4000:
     text = text[:4000] + "\n\n... (List too long)"
-    
-  bot.send_message(message.chat.id, text, parse_mode="Markdown")
+
+  bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=markup)
+
+
+# ==========================================
+# ⚙️ UPDATED ACCESS COMMAND (/access)
+# ==========================================
+@bot.message_handler(commands=["access"])
+def access_command(message):
+  if message.chat.id != ADMIN_CHAT_ID:
+    return
+
+  markup = InlineKeyboardMarkup(row_width=2)
+  markup.add(
+      InlineKeyboardButton(text="➕ Add VIP", callback_data="add_vip_prompt"),
+      InlineKeyboardButton(text="➖ Remove VIP", callback_data="remove_vip_prompt")
+  )
+  
+  bot.send_message(
+      message.chat.id, 
+      "⚙️ **VIP Access Control Panel**\n\nNiche diye gaye button se select karein ki aap kya karna chahte hain:",
+      reply_markup=markup
+  )
+
+
+# ==========================================
+# 🕹️ CALLBACK HANDLERS FOR ADMIN & BUTTONS
+# ==========================================
+@bot.callback_query_handler(func=lambda call: call.data in ["admin_userlist_menu", "admin_access_menu"])
+def handle_admin_menu_callbacks(call):
+  if call.from_user.id != ADMIN_CHAT_ID:
+    return
+  if call.data == "admin_userlist_menu":
+    userlist_command(call.message)
+  elif call.data == "admin_access_menu":
+    access_command(call.message)
+
+
+@bot.callback_query_handler(func=lambda call: call.data in ["add_vip_prompt", "remove_vip_prompt"])
+def handle_vip_prompts(call):
+  if call.from_user.id != ADMIN_CHAT_ID:
+    return
+  
+  try:
+    bot.answer_callback_query(call.id)
+  except Exception:
+    pass
+
+  if call.data == "add_vip_prompt":
+    user_states[ADMIN_CHAT_ID] = "waiting_for_add_vip"
+    bot.send_message(
+        call.message.chat.id,
+        "👉 Jise VIP banana hai uski **User ID** chat mein bhejein:\n\n❌ Cancel karne ke liye `/cancel` likhein."
+    )
+  elif call.data == "remove_vip_prompt":
+    user_states[ADMIN_CHAT_ID] = "waiting_for_remove_vip"
+    bot.send_message(
+        call.message.chat.id,
+        "👉 Jise VIP list se hatana hai uski **User ID** chat mein bhejein:\n\n❌ Cancel karne के liye `/cancel` likhein."
+    )
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "admin_broadcast_mode")
@@ -393,7 +485,7 @@ def cancel_command(message):
   if message.chat.id != ADMIN_CHAT_ID:
     return
   user_states.pop(ADMIN_CHAT_ID, None)
-  bot.send_message(message.chat.id, "❌ Broadcast mode cancel kar diya gaya hai.")
+  bot.send_message(message.chat.id, "❌ Action/Broadcast mode cancel kar diya gaya hai.")
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "verify_join")
@@ -402,7 +494,6 @@ def handle_verification(call):
     return
   user_id = call.from_user.id
   
-  # Ensure user is registered on verification too
   register_or_get_user(user_id)
 
   status_map = get_user_status_map(user_id)
@@ -596,7 +687,6 @@ def handle_all_messages(message):
     return
   user_id = message.from_user.id
 
-  # Ensure any messaging user is also tracked
   register_or_get_user(user_id)
 
   # 1. Admin Broadcast Check
@@ -624,7 +714,35 @@ def handle_all_messages(message):
     )
     return
 
-  # 2. UTR Handling Check
+  # 2. Admin Direct Add VIP Check
+  if user_id == ADMIN_CHAT_ID and user_states.get(ADMIN_CHAT_ID) == "waiting_for_add_vip":
+    user_states.pop(ADMIN_CHAT_ID, None)
+    try:
+      target_id = int(message.text.strip())
+      update_user_data(target_id, "panel_unlocked", 1)
+      bot.reply_to(message, f"✅ Success! User `{target_id}` ko VIP / Mini Web access de diya gaya hai.", parse_mode="Markdown")
+      try:
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton(text="🌐 Open Web Mini App Panel", web_app=WebAppInfo(url=MINI_APP_URL)))
+        bot.send_message(target_id, "🎉 **Aapko Admin dwara VIP Mini Web Panel ka access de diya gaya hai!** Niche button se open karein 👇", reply_markup=markup, parse_mode="Markdown")
+      except Exception:
+        pass
+    except ValueError:
+      bot.reply_to(message, "❌ Invalid User ID. Kripya sirf numbers wali ID bhejein.")
+    return
+
+  # 3. Admin Direct Remove VIP Check
+  if user_id == ADMIN_CHAT_ID and user_states.get(ADMIN_CHAT_ID) == "waiting_for_remove_vip":
+    user_states.pop(ADMIN_CHAT_ID, None)
+    try:
+      target_id = int(message.text.strip())
+      update_user_data(target_id, "panel_unlocked", 0)
+      bot.reply_to(message, f"✅ Success! User `{target_id}` ka VIP access hata diya gaya hai.", parse_mode="Markdown")
+    except ValueError:
+      bot.reply_to(message, "❌ Invalid User ID. Kripya sirf numbers wali ID bhejein.")
+    return
+
+  # 4. UTR Handling Check
   state = user_states.get(user_id)
   if state == "waiting_for_utr":
     if not message.text or not message.text.strip().isdigit() or len(message.text.strip()) != 12:
@@ -667,8 +785,7 @@ def handle_all_messages(message):
 
     bot.send_message(
         message.chat.id,
-        "⏳ Payment Verification Pending by Admin. Kripya intezaar karein.",
-        parse_mode="Markdown",
+        "⏳ Payment Verification Pending by Admin. Kripya intezaar karein."
     )
 
 
@@ -731,11 +848,26 @@ def admin_action(call):
       pass
 
 
+# 🔵 TELEGRAM CHAT BOX BLUE MENU BUTTON SETTER
+def set_bot_commands(bot_instance):
+  commands = [
+      BotCommand("start", "Start the bot and open panel"),
+      BotCommand("admin", "Open Admin Master Dashboard"),
+      BotCommand("userlist", "View normal and VIP users list"),
+      BotCommand("access", "Quick Add/Remove VIP access")
+  ]
+  try:
+    bot_instance.set_my_commands(commands)
+  except Exception as e:
+    print("Set commands error:", e)
+
+
 def run_bot():
   while True:
     try:
       bot.remove_webhook()
       time.sleep(1)
+      set_bot_commands(bot)
       print("Bot Polling Active...")
       bot.infinity_polling(
           timeout=30, long_polling_timeout=30, skip_pending=True
